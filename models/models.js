@@ -16,7 +16,7 @@ const User = sequelize.define(
       defaultValue: "USER",
       allowNull: false,
     },
-    balance: { type: DataTypes.INTEGER, defaultValue: 0, allowNull: false },
+    balance: { type: DataTypes.FLOAT, defaultValue: 0, allowNull: false },
   },
 );
 
@@ -25,8 +25,8 @@ const Game = sequelize.define(
   {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     player_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: "users", key: "id" } },
-    bet: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-    win: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    bet: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+    win: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   },
 );
 

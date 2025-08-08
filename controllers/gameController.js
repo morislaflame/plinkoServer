@@ -1,21 +1,77 @@
 const ApiError = require("../errors/ApiError");
 const sequelize = require("../db");
 const { User, Game } = require("../models/models");
+const points = require("../utilities/points.json");
 
 class GameController {
-  // Функция для определения множителя выигрыша
-  calculateMultiplier = () => {
-    const random = Math.random() * 100;
+  // Множители для каждой ячейки (индексы 0-16)
+  multipliers = {
+    0: 16,
+    1: 9,
+    2: 2,
+    3: 1.4,
+    4: 1.4,
+    5: 1.2,
+    6: 1.1,
+    7: 1,
+    8: 0.5,
+    9: 1,
+    10: 1.1,
+    11: 1.2,
+    12: 1.4,
+    13: 1.4,
+    14: 2,
+    15: 9,
+    16: 16
+  };
+
+  // Функция для выбора случайной точки с весом к центру
+  getRandomPointWithCenterBias = () => {
+    const totalSinks = 17;
+    const center = 8; // центральная ячейка (индекс 8)
     
-    // Распределение вероятностей (в процентах)
-    if (random < 40) return 0.2;        // 40% шанс
-    if (random < 70) return 0.6;        // 30% шанс
-    if (random < 85) return 1.2;        // 15% шанс
-    if (random < 93) return 3;          // 8% шанс
-    if (random < 97) return 10;         // 4% шанс
-    if (random < 99) return 15;         // 2% шанс
-    return 50;                          // 1% шанс
-  }
+    // Создаем веса - чем ближе к центру, тем больше вес
+    const weights = [];
+    for (let i = 0; i < totalSinks; i++) {
+      const distanceFromCenter = Math.abs(i - center);
+      // Обратный вес - чем дальше от центра, тем меньше вес
+      const weight = Math.max(1, totalSinks - distanceFromCenter * 2);
+      weights.push(weight);
+    }
+    
+    // Выбираем случайную ячейку с учетом весов
+    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+    let random = Math.random() * totalWeight;
+    
+    let selectedSink = 0;
+    for (let i = 0; i < weights.length; i++) {
+      random -= weights[i];
+      if (random <= 0) {
+        selectedSink = i;
+        break;
+      }
+    }
+    
+    // Выбираем случайную точку из выбранной ячейки
+    const sinkPoints = points[selectedSink.toString()];
+    if (!sinkPoints || sinkPoints.length === 0) {
+      // Fallback на центральную ячейку если нет данных
+      const centerPoints = points["8"];
+      const randomIndex = Math.floor(Math.random() * centerPoints.length);
+      return {
+        sinkIndex: 8,
+        point: centerPoints[randomIndex],
+        multiplier: this.multipliers[8]
+      };
+    }
+    
+    const randomIndex = Math.floor(Math.random() * sinkPoints.length);
+    return {
+      sinkIndex: selectedSink,
+      point: sinkPoints[randomIndex],
+      multiplier: this.multipliers[selectedSink]
+    };
+  };
 
   async startGame(req, res, next) {
     const transaction = await sequelize.transaction();
@@ -100,9 +156,9 @@ class GameController {
       user.balance -= betAmount;
       await user.save({ transaction });
 
-      // Рассчитываем выигрыш - ИСПРАВЛЕНИЕ: используем this.calculateMultiplier()
-      const multiplier = this.calculateMultiplier();
-      const winAmount = Math.floor(betAmount * multiplier);
+      // Получаем случайную точку и множитель
+      const gameResult = this.getRandomPointWithCenterBias();
+      const winAmount = Math.round(betAmount * gameResult.multiplier * 100) / 100; // Округляем до 2 знаков
 
       // Обновляем игру
       game.bet += betAmount;
@@ -125,9 +181,11 @@ class GameController {
         },
         betResult: {
           betAmount,
-          multiplier,
-          winAmount,
+          multiplier: gameResult.multiplier,
+          winAmount: winAmount,
           newBalance: user.balance,
+          sinkIndex: gameResult.sinkIndex,
+          ballStartPosition: gameResult.point
         },
         message: "Bet placed successfully",
       });

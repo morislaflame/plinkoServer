@@ -50,13 +50,14 @@ class UserController {
 
       const hashPassword = await bcrypt.hash(password, 5);
 
-      // Create the user
+      // Create the user with initial balance of 1000
       const user = await User.create(
         {
           email,
           password: hashPassword,
           role: "USER",
           dailyRewardAvailable: true,
+          balance: 1000.0, // Добавляем .0 для FLOAT
         },
         { transaction }
       );
